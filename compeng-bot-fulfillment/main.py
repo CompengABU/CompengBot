@@ -34,6 +34,8 @@ def entry_point(request):
         output = get_course_outline(request_json)
     elif intent_name == "course-lecturers":
         output = get_course_lecturers(request_json)
+    elif intent_name == "lecturer-courses":
+        output = get_lecturer_courses(request_json)
     # 
     return {"fulfillmentText": output}
 
@@ -83,7 +85,7 @@ def get_course_title(request_json):
     """
     searches a provided course or courses and returns the course outlines
     :param request_json: a json containing parameters from the Webhook request
-    :return:
+    :return: str
     """
     # get the parameters set by user input
     parameters = request_json["queryResult"]["parameters"]
@@ -121,7 +123,7 @@ def get_course_outline(request_json):
     """
     searches a provided course or courses and returns the course outlines
     :param request_json: a json containing parameters from the Webhook request
-    :return:
+    :return: str
     """
     # get the parameters set by user input
     parameters = request_json["queryResult"]["parameters"]
@@ -163,7 +165,7 @@ def get_course_lecturers(request_json):
     """
     searches and return names of lecturers taking a particular course or courses
     :param request_json: a json containing parameters from the Webhook request
-    :return:
+    :return: str
     """
     # get the parameters set by user input
     parameters = request_json["queryResult"]["parameters"]
@@ -171,7 +173,7 @@ def get_course_lecturers(request_json):
     courses_parameter = parameters.get("courses", None)
 
     if courses_parameter is None:
-        return {"fulfillmentText": "No courses specified"}
+        return "No courses specified"
         
     # inserts a single course (with a str datatype) into a list
     elif isinstance(courses_parameter, str):
@@ -187,16 +189,62 @@ def get_course_lecturers(request_json):
     # read course_lecturers google sheet
     df_course_lecturers = read_course_lecturers()
 
-    # all course_code in df_course_lecturers
+    # all course codes in df_course_lecturers
     all_courses = df_course_lecturers.course_code.values
+
+    # contains list courses and their corresponding lecturers as next element
     all_course_lecturers = []
+
     for course_code in course_codes:
         if course_code in all_courses:
-            lecturer_ids = df_course_lecturers.lecturer_id[df_course_lecturers.course_code == course_code].values
-            course_lecturers_id = lecturer_ids[0].split(",")
-            course_lecturers = [df_lecturer_info.name[df_lecturer_info.lecturer_id == id].values[0] for id in course_lecturers_id]
+            lecturer_abbrevs = df_course_lecturers.lecturer_abbrev[df_course_lecturers.course_code == course_code].values
+            course_lecturers_abbrevs = lecturer_abbrevs[0].split(",")
+            course_lecturers = [df_lecturer_info.name[df_lecturer_info.abbrev == abbrev].values[0] for abbrev in course_lecturers_abbrevs]
             course_lecturers_formatted = f"{course_code}:" + "\n" + "\n".join(course_lecturers)
             all_course_lecturers.append(course_lecturers_formatted)
         else:
             all_course_lecturers.append(f"{course_code}: Lecturers info not available")
     return "\n".join(all_course_lecturers)
+
+def get_lecturer_courses(request_json):
+    """
+    searches and return courses taken by a lecturers or group of lecturers
+    :param request_json: a json containing parameters from the Webhook request
+    :return: str
+    """
+    # get the parameters set by user input
+    parameters = request_json["queryResult"]["parameters"]
+    
+    lecturers_abbrev_params = parameters.get("lecturers", None)
+
+    if lecturers_abbrev_params is None:
+        return "No lecturer is specified"
+
+    # inserts a single course (with a str datatype) into a list
+    elif isinstance(lecturers_abbrev_params, str):
+        lecturers_abbrev_params = [lecturers_abbrev_params]
+    else:
+        pass
+
+    # read course_lecturers google sheet
+    df_course_lecturers = read_course_lecturers()
+
+    # read course_info google sheet
+    df_lecturer_info = read_lecturer_info()
+
+    lecturers_abbrev = list(df_course_lecturers.lecturer_abbrev.values)
+    course_codes = list(df_course_lecturers.course_code)
+
+    # list of lecturers and their corresponding courses
+    all_lecturers_courses = []
+
+    for lecturer_abbrev_param in lecturers_abbrev_params:
+        lecturer_name = df_lecturer_info.name[df_lecturer_info.abbrev == lecturer_abbrev_param].values[0]
+        all_lecturers_courses.append(f"{lecturer_name}:")
+        lecturer_courses = [course_code for course_code, lecturer_abbrev in zip(course_codes, lecturers_abbrev) if lecturer_abbrev_param in lecturer_abbrev]
+        if len(lecturer_courses) == 0:
+            all_lecturers_courses.append("No courses")
+        else:
+            all_lecturers_courses.append(", ".join(lecturer_courses))
+            
+    return "\n".join(all_lecturers_courses)
