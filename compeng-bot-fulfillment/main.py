@@ -36,7 +36,14 @@ def entry_point(request):
         output = get_course_lecturers(request_json)
     elif intent_name == "lecturer-courses":
         output = get_lecturer_courses(request_json)
-    # 
+    elif intent_name == "lecturer-about":
+        output = get_lecturer_about(request_json)
+    elif intent_name == "lecturer-email":
+        output = get_lecturer_contact(request_json, which="email")
+    elif intent_name == "lecturer-phone":
+        output = get_lecturer_contact(request_json, which="phone")
+    elif intent_name == "lecturer-contact":
+        output = get_lecturer_contact(request_json)
     return {"fulfillmentText": output}
 
 def read_ug_courses():
@@ -248,3 +255,85 @@ def get_lecturer_courses(request_json):
             all_lecturers_courses.append(", ".join(lecturer_courses))
             
     return "\n".join(all_lecturers_courses)
+
+def get_lecturer_about(request_json):
+    """
+    returns information about lecturers
+    :param request_json: a json containing parameters from the Webhook request
+    :return: str
+    """
+    # get the parameters set by user input
+    parameters = request_json["queryResult"]["parameters"]
+    
+    lecturers_abbrev_params = parameters.get("lecturers", None)
+    if lecturers_abbrev_params is None:
+        return "No lecturer is specified"
+
+    # inserts a single course lecturer abbrevaition (with a str datatype) into a list
+    elif isinstance(lecturers_abbrev_params, str):
+        lecturers_abbrev_params = [lecturers_abbrev_params]
+    else:
+        pass
+
+    # read the lecturer_info google sheets
+    df_lecturer_info = read_lecturer_info()
+
+    all_lecturer_about = []
+    for lecturers_abbrev_param in lecturers_abbrev_params:
+        lecturer_row = df_lecturer_info[df_lecturer_info.abbrev == lecturers_abbrev_param]
+        lecturer_name = lecturer_row.name.values[0]
+        lecturer_rank = lecturer_row["rank"].values[0]
+        lecturer_about = lecturer_row.about.values[0]
+        lecturer_info_str = f"{lecturer_name}\nRank: {lecturer_rank}\n{lecturer_about}"
+        all_lecturer_about.append(lecturer_info_str)
+    return "\n".join(all_lecturer_about)
+
+def get_lecturer_contact(request_json, which="both"):
+    """
+    returns email of lecturers
+    :param request_json: a json containing parameters from the Webhook request
+    :param which: return either email, phone number or both of them. "email", "phone" or "both"
+    :return: str
+    """
+    """
+    returns information about lecturers
+    :param request_json: a json containing parameters from the Webhook request
+    :return: str
+    """
+    # get the parameters set by user input
+    parameters = request_json["queryResult"]["parameters"]
+    
+    lecturers_abbrev_params = parameters.get("lecturers", None)
+    if lecturers_abbrev_params is None:
+        return "No lecturer is specified"
+
+    # inserts a single course lecturer abbrevaition (with a str datatype) into a list
+    elif isinstance(lecturers_abbrev_params, str):
+        lecturers_abbrev_params = [lecturers_abbrev_params]
+    else:
+        pass
+
+    # read the lecturer_info google sheets
+    df_lecturer_info = read_lecturer_info()
+    
+    all_lecturer_contact = []
+    for lecturers_abbrev_param in lecturers_abbrev_params:
+        
+        lecturer_contact = []
+        lecturer_row = df_lecturer_info[df_lecturer_info.abbrev == lecturers_abbrev_param]
+        lecturer_name = lecturer_row["name"].values[0]
+        lecturer_contact.append(lecturer_name)
+        if which == "email":
+            lecturer_email = lecturer_row.email.values[0]
+            lecturer_contact.append(f"Email: {lecturer_email}")
+        elif which == "phone":
+            lecturer_phone = lecturer_row.phone.values[0]
+            lecturer_contact.append(f"Phone: {lecturer_phone}")
+        else:
+            lecturer_email = lecturer_row.email.values[0]
+            lecturer_phone = lecturer_row.phone.values[0]
+            lecturer_contact.append(f"Email: {lecturer_email}")
+            lecturer_contact.append(f"Phone: {lecturer_phone}")
+        lecturer_contact_str = "\n".join(lecturer_contact)
+        all_lecturer_contact.append(lecturer_contact_str)
+    return "\n".join(all_lecturer_contact)
